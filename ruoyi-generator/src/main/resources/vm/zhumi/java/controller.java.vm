@@ -1,0 +1,271 @@
+package ${packageName}.controller;
+
+import java.util.List;
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
+import org.apache.shiro.authz.annotation.RequiresPermissions;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
+import com.ruoyi.common.annotation.Log;
+import com.ruoyi.common.enums.BusinessType;
+import ${packageName}.domain.${ClassName};
+import ${packageName}.service.I${ClassName}Service;
+import com.ruoyi.common.core.controller.BaseController;
+import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.utils.poi.ExcelUtil;
+#if($table.crud || $table.sub)
+#elseif($table.tree)
+import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.core.domain.Ztree;
+#end
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import com.alibaba.excel.ExcelReader;
+import com.alibaba.excel.ExcelWriter;
+import com.alibaba.excel.metadata.Sheet;
+import com.alibaba.excel.support.ExcelTypeEnum;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import javax.servlet.http.HttpServletResponse;
+import com.ruoyi.common.utils.DateUtils;
+import com.example.sample.easyexcel.ExcelListener;
+/**
+ * ${functionName}Controller
+ * 
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Controller
+@RequestMapping("/${moduleName}/${businessName}")
+@Api(description = "${functionName}controller")
+public class ${ClassName}Controller extends BaseController
+{
+
+    @Autowired
+    private I${ClassName}Service ${className}Service;
+
+
+#if($table.crud || $table.sub)
+    /**
+     * 查询${functionName}列表
+     */
+    @ApiOperation(value="查询${functionName}列表",notes = "查询${functionName}列表")
+    @RequiresPermissions("${permissionPrefix}:list")
+    @GetMapping("/list")
+    @ResponseBody
+    public PageInfo<${ClassName}> list(@ApiParam(value = "当前页")@RequestParam(defaultValue = "1", value = "pageNum") Integer pageNum, @ApiParam(value = "每页条数")@RequestParam(defaultValue = "10", value = "pageSize") Integer pageSize,${ClassName} ${className})
+    {
+        PageHelper.startPage(pageNum,pageSize);
+        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        PageInfo<${ClassName}> pageInfo = new PageInfo<${ClassName}>(list);
+        return pageInfo;
+    }
+#elseif($table.tree)
+    /**
+     * 查询${functionName}树列表
+     */
+    @ApiOperation(value="查询${functionName}树列表",notes = "查询${functionName}树列表")
+    @RequiresPermissions("${permissionPrefix}:list")
+    @GetMapping("/list")
+    @ResponseBody
+    public List<${ClassName}> list(${ClassName} ${className})
+    {
+        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        return list;
+    }
+#end
+    /**
+     * 查询${functionName}详情
+     */
+    @ApiOperation(value="查询${functionName}详情",notes = "查询${functionName}详情")
+    @RequiresPermissions("${permissionPrefix}:detail")
+    @GetMapping("/detail")
+    @ResponseBody
+    public AjaxResult ${className}Detail(@RequestParam(value="id")@ApiParam(value="id") String id)
+    {
+        ${ClassName} ${className} = ${className}Service.select${ClassName}ById(id);
+        return AjaxResult.success(${className});
+    }
+    /**
+     * 导出${functionName}列表
+     */
+    @ApiOperation(value="导出${functionName}列表",notes = "导出${functionName}列表")
+    @RequiresPermissions("${permissionPrefix}:export")
+    @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
+    @GetMapping("/export")
+    @ResponseBody
+    public AjaxResult export(${ClassName} ${className})
+    {
+        List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+        ExcelUtil<${ClassName}> util = new ExcelUtil<${ClassName}>(${ClassName}.class);
+        return util.exportExcel(list, "${businessName}");
+    }
+
+    /**
+     * 新增${functionName}
+     */
+    @ApiOperation(value="新增${functionName}",notes = "新增${functionName}")
+    @RequiresPermissions("${permissionPrefix}:add")
+    @Log(title = "${functionName}", businessType = BusinessType.INSERT)
+    @PostMapping("/add")
+    @ResponseBody
+    public AjaxResult addSave(@RequestBody ${ClassName} ${className})
+    {
+        return toAjax(${className}Service.insert${ClassName}(${className}));
+    }
+    /**
+     * 修改${functionName}
+     */
+    @ApiOperation(value="修改${functionName}",notes = "修改${functionName}")
+    @RequiresPermissions("${permissionPrefix}:edit")
+    @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
+    @PostMapping("/edit")
+    @ResponseBody
+    public AjaxResult editSave(@RequestBody ${ClassName} ${className})
+    {
+        return toAjax(${className}Service.update${ClassName}(${className}));
+    }
+
+#if($table.crud || $table.sub)
+    /**
+     * 删除${functionName}
+     */
+    @ApiOperation(value="删除${functionName}",notes = "删除${functionName}")
+    @RequiresPermissions("${permissionPrefix}:remove")
+    @Log(title = "${functionName}", businessType = BusinessType.DELETE)
+    @PostMapping( "/remove")
+    @ResponseBody
+    public AjaxResult remove(@RequestParam(value="ids",required = true)@ApiParam(value ="${functionName}ID" )String ids)
+    {
+        return toAjax(${className}Service.delete${ClassName}ByIds(ids));
+    }
+#elseif($table.tree)
+    /**
+     * 删除
+     */
+    @ApiOperation(value="删除${functionName}",notes = "删除${functionName}")
+    @RequiresPermissions("${permissionPrefix}:remove")
+    @Log(title = "${functionName}", businessType = BusinessType.DELETE)
+    @GetMapping("/remove/{${pkColumn.javaField}}")
+    @ResponseBody
+    public AjaxResult remove(@PathVariable("${pkColumn.javaField}") ${pkColumn.javaType} ${pkColumn.javaField})
+    {
+        return toAjax(${className}Service.delete${ClassName}ById(${pkColumn.javaField}));
+    }
+#end
+#if($table.tree)
+
+    /**
+     * 选择${functionName}树
+     */
+#set($BusinessName=$businessName.substring(0,1).toUpperCase() + ${businessName.substring(1)})
+    @ApiOperation(value="选择${functionName}树",notes = "选择${functionName}树")
+    @GetMapping(value = { "/select${BusinessName}Tree/{${pkColumn.javaField}}", "/select${BusinessName}Tree/" })
+    public String select${BusinessName}Tree(@PathVariable(value = "${pkColumn.javaField}", required = false) Long ${pkColumn.javaField}, ModelMap mmap)
+    {
+        if (StringUtils.isNotNull(${pkColumn.javaField}))
+        {
+            mmap.put("${className}", ${className}Service.select${ClassName}ById(${pkColumn.javaField}));
+        }
+        return prefix + "/tree";
+    }
+
+    /**
+     * 加载${functionName}树列表
+     */
+    @ApiOperation(value="加载${functionName}树列表",notes = "加载${functionName}树列表")
+    @GetMapping("/treeData")
+    @ResponseBody
+    public List<Ztree> treeData()
+    {
+        List<Ztree> ztrees = ${className}Service.select${ClassName}Tree();
+        return ztrees;
+    }
+#end
+
+    /**
+    * 导入${functionName}列表
+    */
+    @ApiOperation(value="导入${functionName}列表",notes = "导入${functionName}列表")
+    @RequiresPermissions("/:${className}:import")
+    @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
+    @PostMapping("/import${ClassName}")
+    @ResponseBody
+    public AjaxResult import${ClassName}(@RequestParam MultipartFile file) {
+
+        InputStream inputStream = null;
+        try {
+            inputStream = file.getInputStream();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        //实例化实现了AnalysisEventListener接口的类
+        ExcelListener listener = new ExcelListener();
+        //传入参数
+        ExcelReader excelReader = new ExcelReader(inputStream, ExcelTypeEnum.XLSX, null, listener);
+        //读取信息
+        excelReader.read(new Sheet(1, 1, ${ClassName}.class));
+        //获取数据
+        List<Object> list = listener.getDatas();
+        Object ob = (Object) list;
+        List<${ClassName}> list${ClassName} = (List<${ClassName}>)ob ;
+        //批量插入
+        ${className}Service.batchInsert${ClassName}(list${ClassName});
+        return AjaxResult.success();
+    }
+    /**
+     * 导出${functionName}列表
+     */
+    @ApiOperation(value="导出${functionName}列表",notes = "导出${functionName}列表")
+    @RequiresPermissions("/:${className}:export")
+    @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
+    @GetMapping("/${className}Export")
+    @ResponseBody
+    public String ${className}Export(HttpServletResponse response,${ClassName} ${className}) throws Exception { //throws IOException {
+        ExcelWriter writer = null;
+        OutputStream outputStream = response.getOutputStream();
+        try {
+            String filename= DateUtils.dateTimeNow()+"${className}.xls";
+            //添加响应头信息
+            response.setHeader("Content-disposition", "attachment; filename=" + filename);
+            //设置类型
+            response.setContentType("application/msexcel;charset=UTF-8");
+            //设置头
+            response.setHeader("Pragma", "No-cache");
+            //设置头
+            response.setHeader("Cache-Control", "no-cache");
+            //设置日期头
+            response.setDateHeader("Expires", 0);
+
+            //实例化 ExcelWriter
+            writer = new ExcelWriter(outputStream, ExcelTypeEnum.XLSX, true);
+            //实例化表单
+            Sheet sheet = new Sheet(1, 0, ${ClassName}.class);
+            sheet.setSheetName("${functionName}列表");
+            //获取数据
+            List<${ClassName}> list = ${className}Service.select${ClassName}List(${className});
+            //输出
+            writer.write(list, sheet);
+            writer.finish();
+            outputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                response.getOutputStream().close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return null;
+    }
+}
