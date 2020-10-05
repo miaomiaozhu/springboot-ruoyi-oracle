@@ -230,7 +230,7 @@ public class ${ClassName}Controller extends BaseController
     @Log(title = "${functionName}", businessType = BusinessType.EXPORT)
     @GetMapping("/${className}Export")
     @ResponseBody
-    public String ${className}Export(HttpServletResponse response,${ClassName} ${className}) throws Exception { //throws IOException {
+    public void ${className}Export(HttpServletResponse response,${ClassName} ${className}) throws Exception { //throws IOException {
         ExcelWriter writer = null;
         OutputStream outputStream = response.getOutputStream();
         try {
@@ -266,6 +266,5 @@ public class ${ClassName}Controller extends BaseController
                 e.printStackTrace();
             }
         }
-        return null;
     }
 }
