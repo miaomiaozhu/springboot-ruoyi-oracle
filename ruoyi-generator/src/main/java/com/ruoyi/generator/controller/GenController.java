@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.servlet.http.HttpServletResponse;
+
+import io.swagger.annotations.Api;
 import org.apache.commons.io.IOUtils;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +38,7 @@ import com.ruoyi.generator.service.IGenTableService;
  * 
  * @author ruoyi
  */
+@Api("接口文档生成管理")
 @Controller
 @RequestMapping("/tool/gen")
 public class GenController extends BaseController

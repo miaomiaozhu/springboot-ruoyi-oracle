@@ -3,12 +3,9 @@ package com.ruoyi.generator.controller;
 import com.alibaba.excel.ExcelReader;
 import com.alibaba.excel.metadata.Sheet;
 import com.alibaba.excel.support.ExcelTypeEnum;
-import com.ruoyi.common.annotation.Log;
 import com.ruoyi.common.core.controller.BaseController;
-import com.ruoyi.common.enums.BusinessType;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.generator.easyexcel.ExcelListener;
-import com.ruoyi.generator.service.IGenTableService;
 import com.ruoyi.generator.service.ISqlService;
 import com.ruoyi.generator.vo.ExcelColumn;
 import com.ruoyi.generator.vo.ExcelTable;
@@ -35,12 +32,22 @@ import java.util.List;
  * @Date 2020/10/5 13:24
  * @Version 1.0
  **/
-@Api("sql生成管理")
+@Api(description = "sql语句生成管理")
 @Controller
-@RequestMapping("/tool/gen")
+@RequestMapping("/tool/sql")
 public class SqlController extends BaseController {
     @Autowired
     private ISqlService sqlService;
+    /**
+     * test
+     *
+     * */
+    @ApiOperation(value="test",notes="test")
+//    @RequiresPermissions("tool:gen:sql")
+//    @Log(title = "批量生成sql", businessType = BusinessType.GENCODE)
+    @PostMapping("/test")
+    public void test(@ApiParam(value="需要导入的excel文档") @RequestParam MultipartFile file) throws IOException {
+    }
     /**
      * excel批量生成sql
      *
@@ -85,6 +92,8 @@ public class SqlController extends BaseController {
             List<String> tableNameRow = listRole.get(1);
             //解析第三行
             List<String> tableCommentRow = listRole.get(2);
+            //解析第四行
+            List<String> tableModuleNameRow = listRole.get(3);
             //表名
             String tableName = tableNameRow.get(1).toUpperCase();
             //表描述

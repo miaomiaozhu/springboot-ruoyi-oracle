@@ -10,3 +10,8 @@ gen:
   # 表前缀（生成类名不会包含表前缀，多个用逗号分隔）
   tablePrefix: sys_
   template_type: zhumi
+
+# Swagger配置
+swagger:
+  # 是否开启swagger
+  enabled: true

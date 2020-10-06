@@ -44,7 +44,6 @@ public class ExcelColumn extends BaseRowModel
     private String javaField;
 
 
-
     /** 是否自增（1是） */
     private String isIncrement;
 

@@ -12,7 +12,7 @@ import java.util.List;
  */
 public interface ISqlService {
     /**
-     * 查询业务列表
+     * 生成sql
      *
      * @param columnList 列信息
      * @return
