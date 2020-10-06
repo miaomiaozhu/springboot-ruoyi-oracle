@@ -377,4 +377,5 @@ public class GenTableColumn extends BaseEntity
             return this.columnComment;
         }
     }
+
 }

@@ -9,22 +9,22 @@ import com.ruoyi.generator.config.PageColumnEnum;
 import com.ruoyi.generator.domain.GenTable;
 import com.ruoyi.generator.domain.GenTableColumn;
 import com.ruoyi.generator.easyexcel.ExcelListener;
-import com.ruoyi.generator.mapper.GenTableMapper;
 import com.ruoyi.generator.service.IApiDocService;
 import com.ruoyi.generator.sql.SqlConstants;
 import com.ruoyi.generator.util.GenUtils;
 import org.apache.poi.hssf.usermodel.*;
+import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 业务 服务层实现
@@ -34,6 +34,8 @@ import java.util.*;
 @Service
 public class ApiDocServiceImpl implements IApiDocService {
     private static final Logger log = LoggerFactory.getLogger(ApiDocServiceImpl.class);
+    //header样式
+    public static HSSFCellStyle cellStyle_header;
     //表头样式
     public static HSSFCellStyle cellStyle_title;
     //内容样式
@@ -46,25 +48,21 @@ public class ApiDocServiceImpl implements IApiDocService {
     public static HSSFCell cell;
     //当前行数
     public static int rowIndex;
-    @Autowired
-    private GenTableMapper genTableMapper;
 
     @Override
     public HSSFWorkbook generateApiDoc(MultipartFile file) {
         List<GenTable> tableList = readExcel(file);
         //初始化列信息
-        for (GenTable table : tableList)
-        {
+        for (GenTable table : tableList) {
             {
-                for (GenTableColumn column : table.getColumns())
-                {
+                for (GenTableColumn column : table.getColumns()) {
                     //提取数据库数据类型
                     String columnType = column.getColumnType().toLowerCase();
                     if (columnType.contains("(")) {
-                        columnType=columnType.substring(0,columnType.lastIndexOf("("));
+                        columnType = columnType.substring(0, columnType.lastIndexOf("("));
                     }
                     column.setColumnType(columnType);
-                    if (!StringUtils.isEmpty(column.getIsPk())&&SqlConstants.IS_PK_SCOPE.contains(column.getIsPk())) {
+                    if (!StringUtils.isEmpty(column.getIsPk()) && SqlConstants.IS_PK_SCOPE.contains(column.getIsPk())) {
                         table.setPkColumn(column);
                     }
                     GenUtils.initColumnField(column, table);
@@ -73,14 +71,16 @@ public class ApiDocServiceImpl implements IApiDocService {
         }
         List<OperateEnum.OperateType> allOperateType = OperateEnum.getAllOperateType();
         //创建工作薄对象
-        HSSFWorkbook workbook=new HSSFWorkbook();
+        HSSFWorkbook workbook = new HSSFWorkbook();
+        //header样式
+        cellStyle_header = this.headerCellStyle(workbook);
         //标题样式
         cellStyle_title = this.titleCellStyle(workbook);
         //内容样式
         cellStyle_content = this.contentCellStyle(workbook);
-        
+
         //遍历表（多个表）
-        for (GenTable genTable:
+        for (GenTable genTable :
                 tableList) {
             //主键信息
             GenTableColumn pkColumn = genTable.getPkColumn();
@@ -90,8 +90,8 @@ public class ApiDocServiceImpl implements IApiDocService {
             String businessName = genTable.getBusinessName().toLowerCase();
             List<GenTableColumn> columnList = genTable.getColumns();
             //遍历操作类型（增，删，改，查，导入，导出）
-            for (OperateEnum.OperateType operateType:
-                allOperateType) {
+            for (OperateEnum.OperateType operateType :
+                    allOperateType) {
                 //操作类型
                 String apiName = operateType.getApiName();
                 //方法名
@@ -99,231 +99,113 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //请求方式
                 String methodType = operateType.getMethodType();
                 //创建工作表对象
-                sheet = workbook.createSheet(tableComment+apiName);
-                sheet.setColumnWidth(0, 256*20+184);
-                sheet.setColumnWidth(1, 256*20+184);
-                sheet.setColumnWidth(2, 256*20+184);
-                sheet.setColumnWidth(3, 256*20+184);
-                sheet.setColumnWidth(4, 256*20+184);
-                sheet.setColumnWidth(5, 256*20+184);
+                sheet = workbook.createSheet(tableComment + apiName);
+                //设置列宽
+                setColumnWidth();
                 //重置行下表
-                rowIndex=0;
-                //开始填充
+                rowIndex = 0;
+                //开始填充excel
+                fillHeader(tableComment+apiName);
                 //请求描述
-                row = sheet.createRow(rowIndex);
-                row.setHeight((short) 300);
-                cell = row.createCell(0);
-                cell.setCellValue("请求描述：");
-                cell.setCellStyle(cellStyle_title);
-                cell = row.createCell(1);
-                cell.setCellValue(tableComment+apiName);
-                cell.setCellStyle(cellStyle_content);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,2,4);
-                //合并单元格
-                sheet.addMergedRegion(new CellRangeAddress(0,0,1,4));
+                fillOneRow_keyValue("请求描述：",tableComment+apiName);
                 //请求地址：
-                rowIndex++;
-                row =  sheet.createRow(rowIndex);
-                row.setHeight((short) 300);
-                cell = row.createCell(0);
-                cell.setCellValue("请求地址：");
-                cell.setCellStyle(cellStyle_title);
-                cell = row.createCell(1);
-                cell.setCellValue("http://ip:port/"+businessName+"/"+functionName);
-                cell.setCellStyle(cellStyle_content);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,2,4);
-                //合并单元格
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
+                fillOneRow_keyValue("请求地址：",businessName + "/" + functionName);
                 //请求方式：
-                rowIndex++;
-                row =  sheet.createRow(rowIndex);
-                row.setHeight((short) 300);
-                cell = row.createCell(0);
-                cell.setCellValue("请求方式：");
-                cell.setCellStyle(cellStyle_title);
-                cell = row.createCell(1);
-                cell.setCellValue(methodType);
-                cell.setCellStyle(cellStyle_content);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,2,4);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
-                //渲染单元格样式
-            //        cell_0.setCellStyle(cellStyle_title);
-            //        cell_1.setCellStyle(cellStyle_title);
+                fillOneRow_keyValue("请求方式：",methodType);
                 //空一行
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                row.setHeight((short) 300);
-                cell = row.createCell(0);
-                cell.setCellValue("");
-                cell.setCellStyle(cellStyle_title);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,0,4);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                fillOneRow_blank();
                 //请求体
-                rowIndex++;
-                sheet.createRow(4).createCell(0).setCellValue("请求体：");
-                row.setHeight((short) 300);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                fillOneRow_keyValue("请求体：","");
                 //请求体表头：
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                row.setHeight((short) 300);
-                row.createCell(0).setCellValue("名称");
-                row.createCell(1).setCellValue("类型");
-                row.createCell(2).setCellValue("必填");
-                row.createCell(3).setCellValue("默认值");
-                row.createCell(4).setCellValue("描述");
-                StringBuilder requestDemo=new StringBuilder();
-                switch(functionName){
+                fillOneRow_title();
+                //请求参数
+                StringBuilder requestDemo = new StringBuilder();
+                switch (functionName) {
                     case OperateConstants.LIST:
                         //请求体内容：遍历所有查询字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsQuery().equals("1")) {
-                                rowIndex++;
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
-                                requestDemo.append(column.getJavaField().toLowerCase()+"=?&");
+                                //填充请求参数
+                                fillOneRow_body(column);
+                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
                             }
                         }
                         break;
                     case OperateConstants.ADD:
                         //请求体内容：遍历所有添加的字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsInsert().equals("1")) {
-                                rowIndex++;
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
+                                //填充请求参数
+                                fillOneRow_body(column);
                                 //TODO
-                                requestDemo.append(column.getJavaField().toLowerCase()+"=?&");
+                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
                             }
                         }
                         break;
                     case OperateConstants.EDIT:
                         //请求体内容：遍历所有修改的字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsEdit().equals("1")) {
-                                rowIndex++;
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
+                                //填充请求参数
+                                fillOneRow_body(column);
                                 //TODO
-                                requestDemo.append(column.getJavaField().toLowerCase()+"=?&");
+                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
                             }
                         }
                         break;
                     case OperateConstants.DELETE:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue(pkColumn.getJavaField().toLowerCase());
-                        row.createCell(1).setCellValue(pkColumn.getJavaType().toLowerCase());
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue(pkColumn.getColumnComment());
-                        requestDemo.append(pkColumn.getJavaField().toLowerCase()+"=?");
+                        //填充请求参数
+                        fillOneRow_body(pkColumn);
+                        requestDemo.append(pkColumn.getJavaField().toLowerCase() + "=?");
                         break;
                     case OperateConstants.DETAIL:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue(pkColumn.getJavaField().toLowerCase());
-                        row.createCell(1).setCellValue(pkColumn.getJavaType().toLowerCase());
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue(pkColumn.getColumnComment());
-                        requestDemo.append(pkColumn.getJavaField().toLowerCase()+"=?");
+                        //填充请求参数
+                        fillOneRow_body(pkColumn);
+                        requestDemo.append(pkColumn.getJavaField().toLowerCase() + "=?");
                         break;
                     case OperateConstants.IMPORT:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("file");
-                        row.createCell(1).setCellValue("File");
-                        row.createCell(2).setCellValue("true");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("导入文件");
+                        //填充请求参数
+                        GenTableColumn column_file = new GenTableColumn();
+                        column_file.setJavaField("file");
+                        column_file.setJavaType("File");
+                        column_file.setColumnComment("导入文件");
+                        //填充请求参数
+                        fillOneRow_body(column_file);
                         break;
                     case OperateConstants.EXPORT:
                         //请求体内容：遍历所有查询字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsQuery().equals("1")) {
-                                rowIndex++;
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
-                                requestDemo.append(column.getJavaField().toLowerCase()+"=?&");
+                                //填充请求参数
+                                fillOneRow_body(column);
+                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
                             }
                         }
                         break;
-                    default :
+                    default:
                 }
                 //空一行
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell = row.createCell(0);
-                cell.setCellValue("");
-                cell.setCellStyle(cellStyle_title);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,0,4);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                fillOneRow_blank();
                 //请求体demo:
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell =row.createCell(0);
-                cell.setCellValue("请求体demo:");
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
+                fillOneRow_keyValue("请求体demo：","");
                 //请求体demo内容:
-                rowIndex++;
                 if (requestDemo.toString().endsWith("&")) {
                     requestDemo.deleteCharAt(requestDemo.lastIndexOf("&"));
                 }
-                row = sheet.createRow(rowIndex);
-                cell =row.createCell(0);
-                cell.setCellValue(requestDemo.toString());
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                //请求体demo:
+                fillOneRow_merge(requestDemo.toString());
                 //空一行
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell = row.createCell(0);
-                cell.setCellValue("");
-                cell.setCellStyle(cellStyle_title);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,0,4);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                fillOneRow_blank();
                 //响应参数(Body):
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell =row.createCell(0);
-                cell.setCellValue("响应参数(Body):");
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
+                fillOneRow_keyValue("响应参数(Body):","");
                 //响应参数(Body)表头：
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                row.createCell(0).setCellValue("名称");
-                row.createCell(1).setCellValue("类型");
-                row.createCell(2).setCellValue("必填");
-                row.createCell(3).setCellValue("默认值");
-                row.createCell(4).setCellValue("描述");
+                fillOneRow_title();
                 //开始填充响应
-                switch(functionName){
+                switch (functionName) {
                     case OperateConstants.LIST:
                         List<PageColumnEnum.PageColumnType> allColumns = PageColumnEnum.getAllColumns();
                         //分页控件的字段列表
-                        for (PageColumnEnum.PageColumnType pageColumnType:
+                        for (PageColumnEnum.PageColumnType pageColumnType :
                                 allColumns) {
                             //字段名
                             String name = pageColumnType.getName();
@@ -331,212 +213,92 @@ public class ApiDocServiceImpl implements IApiDocService {
                             String dataType = pageColumnType.getDataType();
                             //字段描述
                             String desc = pageColumnType.getDesc();
-                            row = sheet.createRow(rowIndex);
-                            row.createCell(0).setCellValue(name);
-                            row.createCell(1).setCellValue(dataType);
-                            row.createCell(2).setCellValue("");
-                            row.createCell(3).setCellValue("");
-                            row.createCell(4).setCellValue(desc);
-                            rowIndex++;
+                            GenTableColumn column_response = new GenTableColumn();
+                            column_response.setJavaField(name);
+                            column_response.setJavaType(dataType);
+                            column_response.setColumnComment(desc);
+                            //填充一行
+                            fillOneRow_body(column_response);
                         }
                         //列表字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsQuery().equals("1")) {
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
-                                rowIndex++;
+                                //填充一行
+                                fillOneRow_body(column);
                             }
                         }
                         break;
                     case OperateConstants.ADD:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("code");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误码");
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("msg");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误信息");
+                        //填充通用POST操作的响应体
+                        fillCodeMsg();
                         break;
                     case OperateConstants.EDIT:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("code");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误码");
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("msg");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误信息");
+                        //填充通用POST操作的响应体
+                        fillCodeMsg();
                         break;
                     case OperateConstants.DELETE:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("code");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误码");
-                        rowIndex++;
-                        HSSFRow row_responseBody_msg_delete = sheet.createRow( rowIndex);
-                        row_responseBody_msg_delete.createCell(0).setCellValue("msg");
-                        row_responseBody_msg_delete.createCell(1).setCellValue("");
-                        row_responseBody_msg_delete.createCell(2).setCellValue("");
-                        row_responseBody_msg_delete.createCell(3).setCellValue("");
-                        row_responseBody_msg_delete.createCell(4).setCellValue("错误信息");
+                        //填充通用POST操作的响应体
+                        fillCodeMsg();
                         break;
                     case OperateConstants.DETAIL:
                         //列表字段
-                        for (GenTableColumn column:columnList) {
+                        for (GenTableColumn column : columnList) {
                             if (column.getIsQuery().equals("1")) {
-                                rowIndex++;
-                                row = sheet.createRow(rowIndex);
-                                row.createCell(0).setCellValue(column.getJavaField().toLowerCase());
-                                row.createCell(1).setCellValue(column.getJavaType().toLowerCase());
-                                row.createCell(2).setCellValue("");
-                                row.createCell(3).setCellValue("");
-                                row.createCell(4).setCellValue(column.getColumnComment());
+                                //填充一行
+                                fillOneRow_body(column);
                             }
                         }
                         break;
                     case OperateConstants.IMPORT:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("code");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误码");
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("msg");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("错误信息");
+                        //填充通用POST操作的响应体
+                        fillCodeMsg();
                         break;
                     case OperateConstants.EXPORT:
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        row.createCell(0).setCellValue("");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("");
-                        row = sheet.createRow(rowIndex);
-                        rowIndex++;
-                        row.createCell(0).setCellValue("");
-                        row.createCell(1).setCellValue("");
-                        row.createCell(2).setCellValue("");
-                        row.createCell(3).setCellValue("");
-                        row.createCell(4).setCellValue("");
+                        GenTableColumn column = new GenTableColumn();
+                        column.setJavaField("");
+                        column.setJavaType("");
+                        column.setColumnComment("");
+                        //填充一行
+                        fillOneRow_body(column);
                         break;
-                    default :
+                    default:
                 }
                 //空一行
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell = row.createCell(0);
-                cell.setCellValue("");
-                cell.setCellStyle(cellStyle_title);
-                //填空白
-                fillBlank(row,cell,cellStyle_content,0,4);
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                fillOneRow_blank();
                 //响应参数(Body)demo
-                rowIndex++;
-                row = sheet.createRow(rowIndex);
-                cell = row.createCell(0);
-                cell.setCellValue("响应参数demo");
-                sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
-                switch(functionName){
+                fillOneRow_keyValue("响应参数(Body)demo","");
+                switch (functionName) {
                     case OperateConstants.LIST:
                         break;
                     case OperateConstants.ADD:
                         //响应参数(Body)demo
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        cell =row.createCell(0);
-                        cell.setCellValue("\n" +
-                                "{\n" +
-                                "  \"code\": 0,\n" +
-                                "  \"msg\": \"操作成功\"\n" +
-                                "}");
-                        cell.setCellStyle(cellStyle_content);
-                        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                        fillCodeMsgContent();
                         break;
                     case OperateConstants.EDIT:
                         //响应参数(Body)demo
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        cell =row.createCell(0);
-                        cell.setCellValue("\n" +
-                                "{\n" +
-                                "  \"code\": 0,\n" +
-                                "  \"msg\": \"操作成功\"\n" +
-                                "}");
-                        cell.setCellStyle(cellStyle_content);
-                        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                        fillCodeMsgContent();
                         break;
                     case OperateConstants.DELETE:
-                        //响应参数(Body)demo
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        cell =row.createCell(0);
-                        cell.setCellValue("\n" +
-                                "{\n" +
-                                "  \"code\": 0,\n" +
-                                "  \"msg\": \"操作成功\"\n" +
-                                "}");
-                        cell.setCellStyle(cellStyle_content);
-                        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                        fillCodeMsgContent();
                         break;
                     case OperateConstants.DETAIL:
+                        //TODO
                         break;
                     case OperateConstants.IMPORT:
-                        //响应参数(Body)demo
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        cell =row.createCell(0);
-                        cell.setCellValue("\n" +
-                                "{\n" +
-                                "  \"code\": 0,\n" +
-                                "  \"msg\": \"操作成功\"\n" +
-                                "}");
-                        cell.setCellStyle(cellStyle_content);
-                        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                        fillCodeMsgContent();
                         break;
                     case OperateConstants.EXPORT:
                         //响应参数(Body)demo
-                        rowIndex++;
-                        row = sheet.createRow(rowIndex);
-                        cell =row.createCell(0);
-                        cell.setCellValue("");
-                        cell.setCellStyle(cellStyle_content);
-                        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+                        fillOneRow_merge("");
                         break;
-                    default :
+                    default:
                 }
             }
         }
         return workbook;
     }
-    //设置表头样式
-    public HSSFCellStyle titleCellStyle(HSSFWorkbook workbook){
+    //设置header样式
+    public HSSFCellStyle headerCellStyle(HSSFWorkbook workbook) {
         HSSFCellStyle cellStyle = workbook.createCellStyle();
         cellStyle.setAlignment(HorizontalAlignment.CENTER);
         cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -553,18 +315,49 @@ public class ApiDocServiceImpl implements IApiDocService {
         cellStyle.setBorderBottom(BorderStyle.THIN);
         cellStyle.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
         //背景色
-        cellStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-//        cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        HSSFColor lightGreen=  setColor(workbook,(byte) 155, (byte)187,(byte) 89);
+        cellStyle.setFillForegroundColor((lightGreen.getIndex()));
+        cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         Font dataFont = workbook.createFont();
         dataFont.setFontName("Arial");
-        dataFont.setFontHeightInPoints((short) 10);
+        dataFont.setFontHeightInPoints((short) 14);
+        dataFont.setBold(true);
+        cellStyle.setFont(dataFont);
+        cellStyle.setAlignment(HorizontalAlignment.CENTER);
+        return cellStyle;
+    }
+    //设置表头样式
+    public HSSFCellStyle titleCellStyle(HSSFWorkbook workbook) {
+        HSSFCellStyle cellStyle = workbook.createCellStyle();
+        cellStyle.setAlignment(HorizontalAlignment.CENTER);
+        cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        //右边框
+        cellStyle.setBorderRight(BorderStyle.THIN);
+        cellStyle.setRightBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        //左边框
+        cellStyle.setBorderLeft(BorderStyle.THIN);
+        cellStyle.setLeftBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        //下边框
+        cellStyle.setBorderTop(BorderStyle.THIN);
+        cellStyle.setTopBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        //上边框
+        cellStyle.setBorderBottom(BorderStyle.THIN);
+        cellStyle.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        //背景色
+        HSSFColor lightGreen=  setColor(workbook,(byte) 155, (byte)187,(byte) 89);
+        cellStyle.setFillForegroundColor((lightGreen.getIndex()));
+        cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        Font dataFont = workbook.createFont();
+        dataFont.setFontName("Arial");
+        dataFont.setFontHeightInPoints((short) 12);
         dataFont.setBold(true);
         cellStyle.setFont(dataFont);
         cellStyle.setAlignment(HorizontalAlignment.LEFT);
         return cellStyle;
     }
+
     //设置内容样式
-    public HSSFCellStyle contentCellStyle(HSSFWorkbook workbook){
+    public HSSFCellStyle contentCellStyle(HSSFWorkbook workbook) {
         HSSFCellStyle cellStyle = workbook.createCellStyle();
         //设置水平居中
         cellStyle.setAlignment(HorizontalAlignment.CENTER);
@@ -585,7 +378,7 @@ public class ApiDocServiceImpl implements IApiDocService {
         //设置字体
         HSSFFont font = workbook.createFont();
 //        font.setFontName("华文行楷");//设置字体名称
-        font.setFontHeightInPoints((short)8);//设置字号
+        font.setFontHeightInPoints((short) 10);//设置字号
         font.setItalic(false);//设置是否为斜体
 //        font.setBold(true);//设置是否加粗
 //        font.setColor(IndexedColors.RED.index);//设置字体颜色
@@ -596,8 +389,9 @@ public class ApiDocServiceImpl implements IApiDocService {
 //        cellStyle.setFillForegroundColor(IndexedColors.YELLOW.index);
         return cellStyle;
     }
+
     //解析excel
-    public List<GenTable> readExcel(MultipartFile file){
+    public List<GenTable> readExcel(MultipartFile file) {
         InputStream inputStream = null;
         try {
             inputStream = file.getInputStream();
@@ -610,9 +404,9 @@ public class ApiDocServiceImpl implements IApiDocService {
         ExcelReader excelReader = new ExcelReader(inputStream, ExcelTypeEnum.XLSX, null, listener);
         //sheet的个数
         int sheetSize = excelReader.getSheets().size();
-        List<GenTable> tableList=new ArrayList<GenTable>();
+        List<GenTable> tableList = new ArrayList<GenTable>();
         //从第三个sheet开始读
-        for (int i = 3; i <= sheetSize ; i++) {
+        for (int i = 3; i <= sheetSize; i++) {
             //每次读数据前先清空数据
             listener.clearData();
             ArrayList<GenTableColumn> columnList = new ArrayList<>();
@@ -664,141 +458,204 @@ public class ApiDocServiceImpl implements IApiDocService {
         }
         return tableList;
     }
-    //填空白
-    public static void fillBlank( HSSFRow row,HSSFCell cell,CellStyle cellStyle_content,int startColumn,int endColumn){
-        for (int i = startColumn; i <= endColumn; i++) {
-            cell = row.createCell(i);
-            cell.setCellValue("");
-            cell.setCellStyle(cellStyle_content);
-        }
+
+    //设置行高
+    public static void commonForRow(){
+        rowIndex++;
+        row.setHeight((short) 330);
     }
-    //填充一行请求参数
-    /**
-     * @Author Jumy
-     * @Description
-     * @Date
-     * @Param   HSSFSheet sheet
-     * @Param   HSSFRow row
-     * @Param   HSSFCell cell
-     * @Param   CellStyle cellStyle_content
-     * @Param   int rowIndex
-     * @Param   GenTableColumn column
-     * @return
-     **/
-    public static void fillOneRow_type1(HSSFSheet sheet, HSSFRow row, HSSFCell cell, CellStyle cellStyle_content,  int rowIndex, GenTableColumn column) {
+    //填充一行(key_value)
+    public static void fillOneRow_keyValue(String key, String value) {
+        commonForRow();
         row = sheet.createRow(rowIndex);
-        cell= row.createCell(0);
+        cell = row.createCell(0);
+        cell.setCellValue(key);
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(1);
+        cell.setCellValue(value);
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 1, 4));
+    }
+
+    //填充一行(head)
+    public static void fillOneRow_head(String headName) {
+        commonForRow();
+        row.setHeight((short) 300);
+        row = sheet.createRow(rowIndex);
+        cell = row.createCell(0);
+        cell.setCellValue(headName);
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(1);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 1, 4));
+    }
+
+    //填充一行(空白)
+    public static void fillOneRow_blank() {
+        commonForRow();
+        row = sheet.createRow(rowIndex);
+        cell = row.createCell(0);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(1);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
+    }
+    //填充一行(合并单元格)
+    public static void fillOneRow_merge(String content) {
+        commonForRow();
+        row = sheet.createRow(rowIndex);
+        cell = row.createCell(0);
+        cell.setCellValue(content);
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(1);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell=row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
+    }
+    //填充一行请求参数(表头)
+    public static void fillOneRow_title() {
+        commonForRow();
+        row = sheet.createRow(rowIndex);
+        cell = row.createCell(0);
+        cell.setCellValue("名称");
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(1);
+        cell.setCellValue("类型");
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(2);
+        cell.setCellValue("必填");
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(3);
+        cell.setCellValue("默认值");
+        cell.setCellStyle(cellStyle_title);
+        cell=row.createCell(4);
+        cell.setCellValue("描述");
+        cell.setCellStyle(cellStyle_title);
+    }
+
+    //填充一行请求参数(表内容)
+    public static void fillOneRow_body(GenTableColumn column) {
+        commonForRow();
+        row = sheet.createRow(rowIndex);
+        cell = row.createCell(0);
         cell.setCellValue(column.getJavaField().toLowerCase());
         cell.setCellStyle(cellStyle_content);
-        row.createCell(1);
+        cell=row.createCell(1);
         cell.setCellValue(column.getJavaType().toLowerCase());
         cell.setCellStyle(cellStyle_content);
-        row.createCell(2);
+        cell=row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        row.createCell(3);
+        cell=row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        row.createCell(4);
+        cell=row.createCell(4);
         cell.setCellValue(column.getColumnComment());
         cell.setCellStyle(cellStyle_content);
     }
-    //填充一行空白
-    /**
-     * @Author Jumy
-     * @Description
-     * @Date
-     * @Param   HSSFSheet sheet
-     * @Param   HSSFRow row
-     * @Param   HSSFCell cell
-     * @Param   CellStyle cellStyle_content
-     * @Param   int rowIndex
-     * @Param   GenTableColumn column
-     * @return
-     **/
-    public static void fillOneRow_head(HSSFSheet sheet, HSSFRow row, HSSFCell cell, CellStyle cellStyle_content,  int rowIndex) {
-        rowIndex++;
-        row = sheet.createRow(rowIndex);
-        cell= row.createCell(0);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_title);
-        row.createCell(1);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(2);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(3);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(4);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,1,4));
+    //填充通用POST操作的响应体
+    public void fillCodeMsg(){
+        GenTableColumn column = new GenTableColumn();
+        column.setJavaField("code");
+        column.setJavaType("");
+        column.setColumnComment("错误码");
+        //填充一行
+        fillOneRow_body(column);
+        column.setJavaField("msg");
+        column.setJavaType("");
+        column.setColumnComment("错误信息");
+        //填充一行
+        fillOneRow_body(column);
     }
-    //填充一行空白
-    /**
-     * @Author Jumy
-     * @Description
-     * @Date
-     * @Param   HSSFSheet sheet
-     * @Param   HSSFRow row
-     * @Param   HSSFCell cell
-     * @Param   CellStyle cellStyle_content
-     * @Param   int rowIndex
-     * @Param   GenTableColumn column
-     * @return
-     **/
-    public static void fillOneRow_blank(HSSFSheet sheet, HSSFRow row, HSSFCell cell, int rowIndex) {
-        rowIndex++;
-        row = sheet.createRow(rowIndex);
-        cell= row.createCell(0);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(1);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(2);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(3);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        row.createCell(4);
-        cell.setCellValue("");
-        cell.setCellStyle(cellStyle_content);
-        sheet.addMergedRegion(new CellRangeAddress(rowIndex,rowIndex,0,4));
+    //填充通用POST操作的响应体内容
+    public void fillCodeMsgContent(){
+        String content="\n" +
+                "{\n" +
+                "  \"code\": 0,\n" +
+                "  \"msg\": \"操作成功\"\n" +
+                "}";
+        fillOneRow_merge(content);
     }
-    //填充一行请求参数(表头)
-    /**
-     * @Author Jumy
-     * @Description
-     * @Date
-     * @Param   HSSFSheet sheet
-     * @Param   HSSFRow row
-     * @Param   HSSFCell cell
-     * @Param   CellStyle cellStyle_content
-     * @Param   int rowIndex
-     * @Param   GenTableColumn column
-     * @return
-     **/
-    public static void fillOneRow_title(int rowIndex) {
-        rowIndex++;
-        row = sheet.createRow(rowIndex);
-        cell= row.createCell(0);
-        cell.setCellValue("名称");
-        cell.setCellStyle(cellStyle_title);
-        row.createCell(1);
-        cell.setCellValue("类型");
-        cell.setCellStyle(cellStyle_title);
-        row.createCell(2);
-        cell.setCellValue("必填");
-        cell.setCellStyle(cellStyle_title);
-        row.createCell(3);
-        cell.setCellValue("默认值");
-        cell.setCellStyle(cellStyle_title);
-        row.createCell(4);
-        cell.setCellValue("描述");
-        cell.setCellStyle(cellStyle_title);
+    //设置列宽
+    public void setColumnWidth(){
+        sheet.setColumnWidth(0, 256 * 20 + 184);
+        sheet.setColumnWidth(1, 256 * 20 + 184);
+        sheet.setColumnWidth(2, 256 * 20 + 184);
+        sheet.setColumnWidth(3, 256 * 20 + 184);
+        sheet.setColumnWidth(4, 256 * 40 + 184);
+    }
+    //填充表头
+    public void fillHeader(String title){
+        row = sheet.createRow(0);
+        cell = row.createCell(0);
+        cell.setCellValue(title);
+        cell.setCellStyle(cellStyle_header);
+        cell=row.createCell(1);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_header);
+        cell=row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_header);
+        cell=row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_header);
+        cell=row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_header);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
+    }
+    public HSSFColor setColor(HSSFWorkbook workbook, byte r,byte g, byte b){
+        HSSFPalette palette = workbook.getCustomPalette();
+        HSSFColor hssfColor = null;
+        try {
+            hssfColor= palette.findColor(r, g, b);
+            if (hssfColor == null ){
+                palette.setColorAtIndex(HSSFColor.LAVENDER.index, r, g,b);
+                hssfColor = palette.getColor(HSSFColor.LAVENDER.index);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return hssfColor;
     }
 }
