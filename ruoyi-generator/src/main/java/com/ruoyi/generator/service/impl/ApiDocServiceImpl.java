@@ -2,7 +2,10 @@ package com.ruoyi.generator.service.impl;
 
 import com.alibaba.excel.ExcelReader;
 import com.alibaba.excel.support.ExcelTypeEnum;
+import com.alibaba.fastjson.JSONArray;
+import com.ruoyi.common.json.JSONObject;
 import com.ruoyi.common.utils.StringUtils;
+import com.ruoyi.common.utils.bean.BeanUtils;
 import com.ruoyi.generator.config.OperateConstants;
 import com.ruoyi.generator.config.OperateEnum;
 import com.ruoyi.generator.config.PageColumnEnum;
@@ -12,6 +15,7 @@ import com.ruoyi.generator.easyexcel.ExcelListener;
 import com.ruoyi.generator.service.IApiDocService;
 import com.ruoyi.generator.sql.SqlConstants;
 import com.ruoyi.generator.util.GenUtils;
+import org.apache.commons.collections.list.SynchronizedList;
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.ss.usermodel.*;
@@ -24,11 +28,12 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * 业务 服务层实现
- * 
+ *
  * @author ruoyi
  */
 @Service
@@ -88,7 +93,15 @@ public class ApiDocServiceImpl implements IApiDocService {
             String tableComment = genTable.getTableComment();
             //模块名
             String businessName = genTable.getBusinessName().toLowerCase();
+            //表的所有列
             List<GenTableColumn> columnList = genTable.getColumns();
+            //可查询的所有列
+            List<GenTableColumn> columnList_list = getColumnsForOperate(columnList, "list");
+            //可新增的所有列
+            List<GenTableColumn> columnList_add = getColumnsForOperate(columnList, "add");
+            //可修改的所有列
+            List<GenTableColumn> columnList_edit = getColumnsForOperate(columnList, "edit");
+
             //遍历操作类型（增，删，改，查，导入，导出）
             for (OperateEnum.OperateType operateType :
                     allOperateType) {
@@ -105,63 +118,56 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //重置行下表
                 rowIndex = 0;
                 //开始填充excel
-                fillHeader(tableComment+apiName);
+                fillHeader(tableComment + apiName);
                 //请求描述
-                fillOneRow_keyValue("请求描述：",tableComment+apiName);
+                fillOneRow_keyValue("请求描述：", tableComment + apiName);
                 //请求地址：
-                fillOneRow_keyValue("请求地址：",businessName + "/" + functionName);
+                fillOneRow_keyValue("请求地址：", businessName + "/" + functionName);
                 //请求方式：
-                fillOneRow_keyValue("请求方式：",methodType);
+                fillOneRow_keyValue("请求方式：", methodType);
                 //空一行
                 fillOneRow_blank();
                 //请求体
-                fillOneRow_keyValue("请求体：","");
+                fillOneRow_keyValue("请求体：", "");
                 //请求体表头：
                 fillOneRow_title();
                 //请求参数
-                StringBuilder requestDemo = new StringBuilder();
+                //请求json
+                String requestJson = "";
                 switch (functionName) {
                     case OperateConstants.LIST:
                         //请求体内容：遍历所有查询字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsQuery().equals("1")) {
-                                //填充请求参数
-                                fillOneRow_body(column);
-                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
-                            }
+                        for (GenTableColumn column : columnList_list) {
+                            //填充请求参数
+                            fillOneRow_body(column);
+                            requestJson+=column.getJavaField().toLowerCase() + "=?&";
                         }
                         break;
                     case OperateConstants.ADD:
                         //请求体内容：遍历所有添加的字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsInsert().equals("1")) {
-                                //填充请求参数
-                                fillOneRow_body(column);
-                                //TODO
-                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
-                            }
+                        for (GenTableColumn column : columnList_add) {
+                            //填充请求参数
+                            fillOneRow_body(column);
                         }
+                        requestJson = generateRequestJson(columnList_add);
                         break;
                     case OperateConstants.EDIT:
                         //请求体内容：遍历所有修改的字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsEdit().equals("1")) {
-                                //填充请求参数
-                                fillOneRow_body(column);
-                                //TODO
-                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
-                            }
+                        for (GenTableColumn column : columnList_edit) {
+                            //填充请求参数
+                            fillOneRow_body(column);
                         }
+                        requestJson = generateRequestJson(columnList_edit);
                         break;
                     case OperateConstants.DELETE:
                         //填充请求参数
                         fillOneRow_body(pkColumn);
-                        requestDemo.append(pkColumn.getJavaField().toLowerCase() + "=?");
+                        requestJson+=pkColumn.getJavaField().toLowerCase() + "=?&";
                         break;
                     case OperateConstants.DETAIL:
                         //填充请求参数
                         fillOneRow_body(pkColumn);
-                        requestDemo.append(pkColumn.getJavaField().toLowerCase() + "=?");
+                        requestJson+=pkColumn.getJavaField().toLowerCase() + "=?&";
                         break;
                     case OperateConstants.IMPORT:
                         //填充请求参数
@@ -174,12 +180,10 @@ public class ApiDocServiceImpl implements IApiDocService {
                         break;
                     case OperateConstants.EXPORT:
                         //请求体内容：遍历所有查询字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsQuery().equals("1")) {
-                                //填充请求参数
-                                fillOneRow_body(column);
-                                requestDemo.append(column.getJavaField().toLowerCase() + "=?&");
-                            }
+                        for (GenTableColumn column : columnList_list) {
+                            //填充请求参数
+                            fillOneRow_body(column);
+                            requestJson+=pkColumn.getJavaField().toLowerCase() + "=?&";
                         }
                         break;
                     default:
@@ -187,17 +191,17 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //空一行
                 fillOneRow_blank();
                 //请求体demo:
-                fillOneRow_keyValue("请求体demo：","");
+                fillOneRow_keyValue("请求体demo：", "");
                 //请求体demo内容:
-                if (requestDemo.toString().endsWith("&")) {
-                    requestDemo.deleteCharAt(requestDemo.lastIndexOf("&"));
+                if (requestJson.endsWith("&")) {
+                    requestJson=requestJson.substring(0,requestJson.length()-1);
                 }
                 //请求体demo:
-                fillOneRow_merge(requestDemo.toString());
+                fillOneRow_merge(requestJson);
                 //空一行
                 fillOneRow_blank();
                 //响应参数(Body):
-                fillOneRow_keyValue("响应参数(Body):","");
+                fillOneRow_keyValue("响应参数(Body):", "");
                 //响应参数(Body)表头：
                 fillOneRow_title();
                 //开始填充响应
@@ -227,18 +231,16 @@ public class ApiDocServiceImpl implements IApiDocService {
                         //填充一行
                         fillOneRow_body(column_list);
                         //列表字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsQuery().equals("1")) {
-                                //填充一行
-                                column.setJavaField("    "+column.getJavaField());
-                                fillOneRow_body(column);
-                            }
+                        ArrayList<GenTableColumn> columns_temp = new ArrayList<>();
+                        for (GenTableColumn column : columnList_list) {
+                            GenTableColumn column_new = new GenTableColumn();
+                            BeanUtils.copyBeanProp(column_new,column);
+                            columns_temp.add(column_new);
                         }
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsQuery().equals("1")) {
-                                //填充一行完后，javaField恢复
-                                column.setJavaField(column.getJavaField().replace("    ",""));
-                            }
+                        for (GenTableColumn column : columns_temp) {
+                            column.setJavaField("    "+column.getJavaField());
+                            //填充一行
+                            fillOneRow_body(column);
                         }
                         break;
                     case OperateConstants.ADD:
@@ -255,11 +257,9 @@ public class ApiDocServiceImpl implements IApiDocService {
                         break;
                     case OperateConstants.DETAIL:
                         //列表字段
-                        for (GenTableColumn column : columnList) {
-                            if (column.getIsQuery().equals("1")) {
-                                //填充一行
-                                fillOneRow_body(column);
-                            }
+                        for (GenTableColumn column : columnList_list) {
+                            //填充一行
+                            fillOneRow_body(column);
                         }
                         break;
                     case OperateConstants.IMPORT:
@@ -279,9 +279,13 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //空一行
                 fillOneRow_blank();
                 //响应参数(Body)demo
-                fillOneRow_keyValue("响应参数(Body)demo","");
+                fillOneRow_keyValue("响应参数(Body)demo", "");
+                String responseJson = "";
                 switch (functionName) {
                     case OperateConstants.LIST:
+                        //列表字段
+                        responseJson = generateResponseJsonForPage(columnList_list);
+                        fillOneRow_merge(responseJson);
                         break;
                     case OperateConstants.ADD:
                         //响应参数(Body)demo
@@ -295,7 +299,13 @@ public class ApiDocServiceImpl implements IApiDocService {
                         fillCodeMsgContent();
                         break;
                     case OperateConstants.DETAIL:
-                        //TODO
+                        //请求体内容：遍历所有查询字段
+                        for (GenTableColumn column : columnList_list) {
+                            //填充请求参数
+                            fillOneRow_body(column);
+                        }
+                        responseJson = generateResponseJson(columnList_list);
+                        fillOneRow_merge(responseJson);
                         break;
                     case OperateConstants.IMPORT:
                         fillCodeMsgContent();
@@ -306,10 +316,13 @@ public class ApiDocServiceImpl implements IApiDocService {
                         break;
                     default:
                 }
+                //响应一栏高度设置高一点
+                row.setHeight((short) 1000);
             }
         }
         return workbook;
     }
+
     //设置header样式
     public HSSFCellStyle headerCellStyle(HSSFWorkbook workbook) {
         HSSFCellStyle cellStyle = workbook.createCellStyle();
@@ -328,7 +341,7 @@ public class ApiDocServiceImpl implements IApiDocService {
         cellStyle.setBorderBottom(BorderStyle.THIN);
         cellStyle.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
         //背景色
-        HSSFColor lightGreen=  setColor(workbook,(byte) 155, (byte)187,(byte) 89);
+        HSSFColor lightGreen = setColor(workbook, (byte) 155, (byte) 187, (byte) 89);
         cellStyle.setFillForegroundColor((lightGreen.getIndex()));
         cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         Font dataFont = workbook.createFont();
@@ -339,6 +352,7 @@ public class ApiDocServiceImpl implements IApiDocService {
         cellStyle.setAlignment(HorizontalAlignment.CENTER);
         return cellStyle;
     }
+
     //设置表头样式
     public HSSFCellStyle titleCellStyle(HSSFWorkbook workbook) {
         HSSFCellStyle cellStyle = workbook.createCellStyle();
@@ -357,7 +371,7 @@ public class ApiDocServiceImpl implements IApiDocService {
         cellStyle.setBorderBottom(BorderStyle.THIN);
         cellStyle.setBottomBorderColor(IndexedColors.GREY_50_PERCENT.getIndex());
         //背景色
-        HSSFColor lightGreen=  setColor(workbook,(byte) 155, (byte)187,(byte) 89);
+        HSSFColor lightGreen = setColor(workbook, (byte) 155, (byte) 187, (byte) 89);
         cellStyle.setFillForegroundColor((lightGreen.getIndex()));
         cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         Font dataFont = workbook.createFont();
@@ -473,10 +487,11 @@ public class ApiDocServiceImpl implements IApiDocService {
     }
 
     //设置行高
-    public static void commonForRow(){
+    public static void commonForRow() {
         rowIndex++;
         row.setHeight((short) 330);
     }
+
     //填充一行(key_value)
     public static void fillOneRow_keyValue(String key, String value) {
         commonForRow();
@@ -484,16 +499,16 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue(key);
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue(value);
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 1, 4));
@@ -507,16 +522,16 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue(headName);
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 1, 4));
@@ -529,20 +544,21 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
     }
+
     //填充一行(合并单元格)
     public static void fillOneRow_merge(String content) {
         commonForRow();
@@ -550,20 +566,21 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue(content);
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
     }
+
     //填充一行请求参数(表头)
     public static void fillOneRow_title() {
         commonForRow();
@@ -571,16 +588,16 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue("名称");
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue("类型");
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("必填");
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("默认值");
         cell.setCellStyle(cellStyle_title);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("描述");
         cell.setCellStyle(cellStyle_title);
     }
@@ -592,21 +609,22 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell = row.createCell(0);
         cell.setCellValue(column.getJavaField().toLowerCase());
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue(column.getJavaType().toLowerCase());
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_content);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue(column.getColumnComment());
         cell.setCellStyle(cellStyle_content);
     }
+
     //填充通用POST操作的响应体
-    public void fillCodeMsg(){
+    public void fillCodeMsg() {
         GenTableColumn column = new GenTableColumn();
         column.setJavaField("code");
         column.setJavaType("");
@@ -619,50 +637,52 @@ public class ApiDocServiceImpl implements IApiDocService {
         //填充一行
         fillOneRow_body(column);
     }
+
     //填充通用POST操作的响应体内容
-    public void fillCodeMsgContent(){
-        String content="\n" +
-                "{\n" +
-                "  \"code\": 0,\n" +
-                "  \"msg\": \"操作成功\"\n" +
-                "}";
-        fillOneRow_merge(content);
+    public void fillCodeMsgContent() {
+        JSONObject result = new JSONObject();
+        result.put("code", 0);
+        result.put("msg", "操作成功");
+        fillOneRow_merge(result.toString());
     }
+
     //设置列宽
-    public void setColumnWidth(){
+    public void setColumnWidth() {
         sheet.setColumnWidth(0, 256 * 20 + 184);
         sheet.setColumnWidth(1, 256 * 20 + 184);
         sheet.setColumnWidth(2, 256 * 20 + 184);
         sheet.setColumnWidth(3, 256 * 20 + 184);
         sheet.setColumnWidth(4, 256 * 40 + 184);
     }
+
     //填充表头
-    public void fillHeader(String title){
+    public void fillHeader(String title) {
         row = sheet.createRow(0);
         cell = row.createCell(0);
         cell.setCellValue(title);
         cell.setCellStyle(cellStyle_header);
-        cell=row.createCell(1);
+        cell = row.createCell(1);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_header);
-        cell=row.createCell(2);
+        cell = row.createCell(2);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_header);
-        cell=row.createCell(3);
+        cell = row.createCell(3);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_header);
-        cell=row.createCell(4);
+        cell = row.createCell(4);
         cell.setCellValue("");
         cell.setCellStyle(cellStyle_header);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
     }
-    public HSSFColor setColor(HSSFWorkbook workbook, byte r,byte g, byte b){
+
+    public HSSFColor setColor(HSSFWorkbook workbook, byte r, byte g, byte b) {
         HSSFPalette palette = workbook.getCustomPalette();
         HSSFColor hssfColor = null;
         try {
-            hssfColor= palette.findColor(r, g, b);
-            if (hssfColor == null ){
-                palette.setColorAtIndex(HSSFColor.LAVENDER.index, r, g,b);
+            hssfColor = palette.findColor(r, g, b);
+            if (hssfColor == null) {
+                palette.setColorAtIndex(HSSFColor.LAVENDER.index, r, g, b);
                 hssfColor = palette.getColor(HSSFColor.LAVENDER.index);
             }
         } catch (Exception e) {
@@ -670,5 +690,87 @@ public class ApiDocServiceImpl implements IApiDocService {
         }
 
         return hssfColor;
+    }
+
+    //组装请求json
+    public String generateRequestJson(List<GenTableColumn> columnList) {
+        JSONObject result = new JSONObject();
+        for (GenTableColumn column :
+                columnList) {
+            result.put(column.getJavaField(), null);
+        }
+        return result.toString();
+    }
+
+    //组装响应json(分页数据)
+    public String generateResponseJsonForPage(List<GenTableColumn> columnList) {
+        JSONObject result = new JSONObject();
+        List<PageColumnEnum.PageColumnType> allColumns = PageColumnEnum.getAllColumns();
+        for (PageColumnEnum.PageColumnType pageColumnType :
+                allColumns) {
+            //字段名
+            String name = pageColumnType.getName();
+            //字段类型
+            String dataType = pageColumnType.getDataType();
+            result.put(pageColumnType.getName(), null);
+        }
+        JSONArray data = new JSONArray();
+        for (int i = 0; i < 3; i++) {
+            JSONObject object = new JSONObject();
+            for (GenTableColumn column :
+                    columnList) {
+                object.put(column.getJavaField(), null);
+            }
+            data.add(object);
+        }
+
+        result.put("list", data);
+        return result.toString();
+    }
+
+    //组装响应json
+    public String generateResponseJson(List<GenTableColumn> columnList) {
+        JSONObject result = new JSONObject();
+        result.put("code", 0);
+        result.put("msg", "操作成功");
+        JSONObject data = new JSONObject();
+        for (GenTableColumn column :
+                columnList) {
+            data.put(column.getJavaField(), null);
+        }
+        result.put("data", data);
+        return result.toString();
+    }
+
+    //获得可查询，可添加，可修改的列
+    public List<GenTableColumn> getColumnsForOperate(List<GenTableColumn> columnList, String operateType) {
+        List<GenTableColumn> columns = Collections.synchronizedList(new ArrayList<>());
+        switch (operateType) {
+            case "list":
+                for (GenTableColumn column : columnList) {
+                    if (column.getIsQuery().equals("1")) {
+                        columns.add(column);
+                    }
+                }
+                break;
+            case "add":
+                for (GenTableColumn column : columnList) {
+                    if (column.getIsInsert().equals("1")) {
+                        columns.add(column);
+                    }
+                }
+                break;
+            case "edit":
+                for (GenTableColumn column : columnList) {
+                    if (column.getIsEdit().equals("1")) {
+                        columns.add(column);
+                    }
+                }
+                break;
+            default:
+                break;
+
+        }
+        return columns;
     }
 }
