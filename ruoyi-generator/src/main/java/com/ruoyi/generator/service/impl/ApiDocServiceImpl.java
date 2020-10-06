@@ -220,11 +220,24 @@ public class ApiDocServiceImpl implements IApiDocService {
                             //填充一行
                             fillOneRow_body(column_response);
                         }
+                        GenTableColumn column_list = new GenTableColumn();
+                        column_list.setJavaField("list");
+                        column_list.setJavaType("object");
+                        column_list.setColumnComment("数据");
+                        //填充一行
+                        fillOneRow_body(column_list);
                         //列表字段
                         for (GenTableColumn column : columnList) {
                             if (column.getIsQuery().equals("1")) {
                                 //填充一行
+                                column.setJavaField("    "+column.getJavaField());
                                 fillOneRow_body(column);
+                            }
+                        }
+                        for (GenTableColumn column : columnList) {
+                            if (column.getIsQuery().equals("1")) {
+                                //填充一行完后，javaField恢复
+                                column.setJavaField(column.getJavaField().replace("    ",""));
                             }
                         }
                         break;
