@@ -279,7 +279,7 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //空一行
                 fillOneRow_blank();
                 //响应参数(Body)demo
-                fillOneRow_keyValue("响应参数(Body)demo", "");
+                fillOneRow_keyValue("响应参数demo", "");
                 String responseJson = "";
                 switch (functionName) {
                     case OperateConstants.LIST:
@@ -299,11 +299,6 @@ public class ApiDocServiceImpl implements IApiDocService {
                         fillCodeMsgContent();
                         break;
                     case OperateConstants.DETAIL:
-                        //请求体内容：遍历所有查询字段
-                        for (GenTableColumn column : columnList_list) {
-                            //填充请求参数
-                            fillOneRow_body(column);
-                        }
                         responseJson = generateResponseJson(columnList_list);
                         fillOneRow_merge(responseJson);
                         break;

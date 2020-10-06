@@ -45,7 +45,7 @@ public class ApiDocController extends BaseController {
         HSSFWorkbook workbook = apiDocService.generateApiDoc(file);
         OutputStream outputStream = response.getOutputStream();
         try {
-            String filename= DateUtils.dateTimeNow()+"接口文档.xls";
+            String filename= DateUtils.dateTimeNow()+"_api.xls";
             //添加响应头信息
             response.setHeader("Content-disposition", "attachment; filename=" + filename);
             //设置类型
