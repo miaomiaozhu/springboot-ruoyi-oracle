@@ -15,7 +15,7 @@ import com.ruoyi.generator.easyexcel.ExcelListener;
 import com.ruoyi.generator.service.IApiDocService;
 import com.ruoyi.generator.sql.SqlConstants;
 import com.ruoyi.generator.util.GenUtils;
-import org.apache.commons.collections.list.SynchronizedList;
+import org.apache.poi.common.usermodel.HyperlinkType;
 import org.apache.poi.hssf.usermodel.*;
 import org.apache.poi.hssf.util.HSSFColor;
 import org.apache.poi.ss.usermodel.*;
@@ -45,13 +45,13 @@ public class ApiDocServiceImpl implements IApiDocService {
     public static HSSFCellStyle cellStyle_title;
     //内容样式
     public static HSSFCellStyle cellStyle_content;
-    //sheet
+    //全局sheet
     public static HSSFSheet sheet;
-    //行
+    //全局行
     public static HSSFRow row;
-    //单元格
+    //全局单元格
     public static HSSFCell cell;
-    //当前行数
+    //全局当前行数
     public static int rowIndex;
 
     @Override
@@ -83,7 +83,9 @@ public class ApiDocServiceImpl implements IApiDocService {
         cellStyle_title = this.titleCellStyle(workbook);
         //内容样式
         cellStyle_content = this.contentCellStyle(workbook);
-
+        //创建索引
+        createSheetIndex(workbook,tableList);
+        int sheetIndex=0;
         //遍历表（多个表）
         for (GenTable genTable :
                 tableList) {
@@ -101,7 +103,6 @@ public class ApiDocServiceImpl implements IApiDocService {
             List<GenTableColumn> columnList_add = getColumnsForOperate(columnList, "add");
             //可修改的所有列
             List<GenTableColumn> columnList_edit = getColumnsForOperate(columnList, "edit");
-
             //遍历操作类型（增，删，改，查，导入，导出）
             for (OperateEnum.OperateType operateType :
                     allOperateType) {
@@ -112,17 +113,20 @@ public class ApiDocServiceImpl implements IApiDocService {
                 //请求方式
                 String methodType = operateType.getMethodType();
                 //创建工作表对象
+                sheetIndex++;
                 sheet = workbook.createSheet(tableComment + apiName);
                 //设置列宽
                 setColumnWidth();
                 //重置行下表
                 rowIndex = 0;
                 //开始填充excel
-                fillHeader(tableComment + apiName);
+//                fillHeader(tableComment + apiName);
+                //索引行
+                fillIndex(workbook,sheetIndex);
                 //请求描述
                 fillOneRow_keyValue("请求描述：", tableComment + apiName);
                 //请求地址：
-                fillOneRow_keyValue("请求地址：", businessName + "/" + functionName);
+                fillOneRow_keyValue("请求地址：", "http://ip:port/"+businessName + "/" + functionName);
                 //请求方式：
                 fillOneRow_keyValue("请求方式：", methodType);
                 //空一行
@@ -317,7 +321,6 @@ public class ApiDocServiceImpl implements IApiDocService {
         }
         return workbook;
     }
-
     //设置header样式
     public HSSFCellStyle headerCellStyle(HSSFWorkbook workbook) {
         HSSFCellStyle cellStyle = workbook.createCellStyle();
@@ -649,10 +652,34 @@ public class ApiDocServiceImpl implements IApiDocService {
         sheet.setColumnWidth(3, 256 * 20 + 184);
         sheet.setColumnWidth(4, 256 * 40 + 184);
     }
-
+    //填充表头
+    public void fillIndex(HSSFWorkbook workbook,int sheetIndex) {
+        CreationHelper createHelper = workbook.getCreationHelper();
+        HSSFHyperlink hyperlink = (HSSFHyperlink) createHelper.createHyperlink(HyperlinkType.DOCUMENT);
+        row = sheet.createRow(0);
+        cell = row.createCell(0);
+        cell.setCellValue("索引");
+        cell.setCellStyle(cellStyle_content);
+        hyperlink.setAddress("#索引!"+"B"+(sheetIndex+1));
+        cell.setHyperlink(hyperlink);
+        cell = row.createCell(1);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell = row.createCell(2);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell = row.createCell(3);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        cell = row.createCell(4);
+        cell.setCellValue("");
+        cell.setCellStyle(cellStyle_content);
+        sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 1, 4));
+    }
     //填充表头
     public void fillHeader(String title) {
-        row = sheet.createRow(0);
+        rowIndex++;
+        row = sheet.createRow(rowIndex);
         cell = row.createCell(0);
         cell.setCellValue(title);
         cell.setCellStyle(cellStyle_header);
@@ -670,7 +697,26 @@ public class ApiDocServiceImpl implements IApiDocService {
         cell.setCellStyle(cellStyle_header);
         sheet.addMergedRegion(new CellRangeAddress(rowIndex, rowIndex, 0, 4));
     }
-
+    //填充索引表头
+    public void fillIndexHeader(int rowIndex) {
+        row = sheet.createRow(0);
+        cell = row.createCell(0);
+        cell.setCellValue("序号");
+        cell.setCellStyle(cellStyle_header);
+        cell = row.createCell(1);
+        cell.setCellValue("接口名称");
+        cell.setCellStyle(cellStyle_header);
+    }
+    //填充索引body
+    public void fillIndexBody(int rowIndex,String apiName) {
+        row = sheet.createRow(0);
+        cell = row.createCell(0);
+        cell.setCellValue(rowIndex);
+        cell.setCellStyle(cellStyle_content);
+        cell = row.createCell(1);
+        cell.setCellValue(apiName);
+        cell.setCellStyle(cellStyle_content);
+    }
     public HSSFColor setColor(HSSFWorkbook workbook, byte r, byte g, byte b) {
         HSSFPalette palette = workbook.getCustomPalette();
         HSSFColor hssfColor = null;
@@ -767,5 +813,44 @@ public class ApiDocServiceImpl implements IApiDocService {
 
         }
         return columns;
+    }
+    //创建索引页
+    public void createSheetIndex(HSSFWorkbook workbook,List<GenTable> tableList){
+        int rowIndex=0;
+        HSSFSheet sheet = workbook.createSheet("索引");
+        sheet.setColumnWidth(0, 256 * 10 + 184);
+        sheet.setColumnWidth(1, 256 * 50 + 184);
+        HSSFRow row = sheet.createRow((short)rowIndex);
+        HSSFCell cell = row.createCell((short)0);
+        cell.setCellValue("序号");
+        cell.setCellStyle(cellStyle_title);
+        /* 连接跳转*/
+        cell = row.createCell((short)1);
+        cell.setCellValue("接口名称");
+        cell.setCellStyle(cellStyle_title);
+        int index=1;
+        for (GenTable genTable:
+                tableList) {
+            List<OperateEnum.OperateType> allOperateType = OperateEnum.getAllOperateType();
+            for (OperateEnum.OperateType operateType:
+                 allOperateType) {
+                CreationHelper createHelper = workbook.getCreationHelper();
+                HSSFHyperlink hyperlink = (HSSFHyperlink) createHelper.createHyperlink(HyperlinkType.DOCUMENT);
+                //sheet名称
+                String sheetName=genTable.getTableComment()+operateType.getApiName();
+                rowIndex++;
+                row = sheet.createRow((short)rowIndex);
+                cell = row.createCell((short)0);
+                cell.setCellValue(index);
+                cell = row.createCell((short)1);
+                cell.setCellValue(sheetName);
+                // 点击进行跳转
+                // "#"表示本文档    "明细页面"表示sheet页名称  "A10"表示第几列第几行
+                hyperlink.setAddress("#"+sheetName+"!A1");
+                cell.setHyperlink(hyperlink);
+                index++;
+            }
+        }
+
     }
 }
